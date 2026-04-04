@@ -26,11 +26,11 @@ def evaluate_fitness_vectorized(x, y, z):
 
 def generate_separated_plots():
     # Define the slice
-    z_fixed = 0.64
+    z_fixed = 0.199002
 
-    # Zoom in around a plausible maximum (x: 4.25, y: 1.21)
-    x = np.linspace(4.0, 4.5, 500)
-    y = np.linspace(1.0, 1.5, 500)
+    # Zoom in around a known maximum
+    x = np.linspace(3.75, 4.25, 800)
+    y = np.linspace(0.95, 1.45, 800)
     X, Y = np.meshgrid(x, y)
 
     fitness = evaluate_fitness_vectorized(X, Y, z_fixed)
@@ -46,7 +46,7 @@ def generate_separated_plots():
     )
     ax1.set_xlabel('X axis')
     ax1.set_ylabel('Y axis')
-    ax1.set_zlabel('f(x, y, z=0.64)')
+    ax1.set_zlabel(f"f(x, y, z={z_fixed:.3f})")
     fig1.colorbar(surf, ax=ax1, shrink=0.5, aspect=10, pad=0.05)
     fig1.subplots_adjust(left=0, right=0.01, bottom=0, top=0.01)
 
