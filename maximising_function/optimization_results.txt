@@ -1,0 +1,6 @@
+========================================
+          OPTIMIZATION COMPLETE         
+========================================
+Best Parameters: mu=10, lambda=300
+Max Fitness:     7.942774
+Coordinates:     x=3.999115, y=1.204650, z=0.199002
