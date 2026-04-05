@@ -203,6 +203,135 @@ for mu, lambda_ in itertools.product(mu_options, lambda_options):
 
 \section{Distribution Network}
 
+\subsection{Problem Definition}
+
+\quad The scenario involves a Multi-Depot Heterogeneous Fleet Vehicle Routing Problem (\textit{MDHFVRP}) on a 2D plane. To speed up mathematical calculations during the algorithm's process, the physical coordinates $(x_i, y_i)$ of the two warehouses $(W1, W2)$ and the $23$ stores were reorganised into a \texttt{numpy} array.
+
+\vspace{0.5cm}
+
+First, a $25 \times 25$ \textbf{Euclidean distance matrix} was generated, where the distance between any two nodes is $d_{ij} = \sqrt{(x_i - x_j)^2 + (y_i - y_j)^2}$. By calculating these distances in advance, the routing algorithm can quickly look them up in constant time, rather than having to recalculate the distances repeatedly during the simulation.
+
+\vspace{0.5cm}
+
+Secondly, the coordinates were transformed to find the \textbf{polar angle} $(\theta)$ of each store relative to both $W1$ and $W2$ (Figure~\ref{fig:supermarket_network}). By doing this before starting the algorithm, we set the stage for using an \textit{angular sweep} heuristic. This heuristic avoids extreme angle differences, helping the vehicles to create more efficient routes instead of zig-zagging.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.85\linewidth]{images/supermarket_network.png}
+    \caption{The supermarket distribution network featuring $23$ stores and $2$ warehouses $(W1, W2)$. It illustrates the extraction of Euclidean distance $(d_{W1, 17})$ and polar angle $(\theta)$.}
+    \label{fig:supermarket_network}
+\end{figure}
+
+\subsection{Algorithm Selection and Justification}
+
+\quad To solve this routing problem, both \textbf{Genetic Algorithms} (\textit{GA}) and \textbf{Ant Colony Optimisation} (\textit{ACO}) were considered. \textit{GAs} can find good solutions, but they struggle with routing problems that have strict rules. Research shows that using standard genetic crossover on a routing sequence often creates invalid routes, such as visiting one store multiple times while missing others \cite{Luke2013Metaheuristics}. Although special techniques like Partially Mapped Crossover (PMX) can help avoid duplication, mixing routes makes it hard to maintain strict limits on vehicle capacities (5 stores for Vans, 18 for Lorries). As a result, a \textit{GA} would need costly repair processes in every generation to fix overloaded vehicles.
+
+\vspace{0.5cm}
+
+\textbf{\textit{ACO} was chosen} as the best architecture for this task. It was originally designed for routing networks. \textit{ACO} works by having agents (\textit{ants}) build solutions step-by-step. These ants are guided by how desirable a path is and the pheromone trails they leave behind \cite{Luke2013Metaheuristics}. This step-by-step process allows \textit{ACO} to handle strict rules naturally instead of fixing them later. As an ant moves through the network, it keeps track of its load. If a vehicle reaches its maximum capacity, the routing system automatically directs it to return to the depot to finish the route. By following the actual limits of the vehicles and avoiding complex fixes, \textit{ACO} offers a much simpler and more reliable way to solve this optimisation problem.
+
+\vspace{0.5cm}
+
+\subsection{Heuristic Implementations}
+
+\quad To optimise the routing patterns, the standard \textit{ACO} heuristic was replaced with a custom evaluation function combining \textbf{Clarke-Wright distance savings} with an \textbf{angular sweep penalty}. Rather than simply prioritising the nearest unvisited node, the algorithm calculates the distance saved by combining two stores into a single route relative to the active warehouse.
+
+$$S_{ij} = d_{w,i} + d_{w,j} - d_{i,j}$$
+
+\hspace{-1.5em}To prevent the generation of disjointed, \textit{zig-zagging} routes, this savings value is penalised by the absolute angular difference $(\Delta\theta)$ in radians between the two nodes. The final desirability is calculated as:
+
+$$S_{ij} / (1 + \Delta\theta)$$
+
+\hspace{-1.5em}The addition of $1.0$ to the denominator prevents a \texttt{DivisionByZero} error if two candidate stores share an identical polar trajectory from the warehouse.
+
+\vspace{0.5cm}
+
+Furthermore, to ensure the generated routing sequences remained geometrically sound, a \textbf{2-Opt} local search mechanism was implemented. A completed vehicle route is represented as a one-dimensional array of indices beginning and terminating at the designated warehouse. For example, $[23, 15, 6, 8, 23]$ denotes a vehicle leaving Warehouse 1, visiting three stores, and returning. Due to the probabilistic nature of the ant agents, initial routes may contain intersecting paths. The \textbf{Triangle Inequality} implies that intersecting lines on a 2D Euclidean plane will produce a longer total distance than a non-intersecting configuration. The 2-Opt function scans the route array for any two crossing edges where reversing the internal sub-route (e.g., flipping the visitation order from $[15, 6]$ to $[6, 15]$) yields a shorter combined distance. This iterative untangling ensures the \textit{pheromone} matrix is updated with optimal, non-intersecting sub-routes.
+
+\subsection{Algorithm Implementation and Results}
+
+\vspace{0.5cm}
+
+\textbf{Constraint Handling:}
+
+\vspace{0.25cm}
+
+\textit{Ant Colony Optimisation} uses a constructive approach, allowing it to manage different vehicle capacities (Vans = 5 stores, Lorries = 18 stores) during route planning,  rather than relying on retroactive repair functions. The algorithm keeps track of each route's payload. If a path reaches the maximum capacity of a Lorry, the system forces the route back to the warehouse.
+
+\vspace{0.5cm}
+
+\hspace{-1.5em}To ensure accuracy in both design and function, the architecture clearly separates the algorithmic agents (\textit{ants}) from the physical fleet (\textit{vehicles}):
+
+\begin{itemize}
+    \item \textbf{Ant (The Algorithmic Agent):} An ant does not represent a single vehicle; rather, it acts as a \textit{fleet manager} constructing a complete daily strategy. A single ant will sequentially deploy and route multiple vehicles until all 23 stores are serviced, at which point it evaluates the total combined cost of the entire fleet to inform its \textit{pheromone} deposit.
+
+    \item \textbf{Vehicle (The Capacitated Sub-Route):} The Vans and Lorries represent the physical, constrained resources allocated by the ant. A vehicle's route is simply a single, closed loop originating from a warehouse, visiting a limited subset of stores, and returning, functioning as one isolated component of the ant's overarching master plan.
+\end{itemize}
+
+\noindent\begin{minipage}{1\linewidth}
+    \begin{lstlisting}[language=Python, caption=Agent logic for handling vehicle constraints without the need for retroactive route repair., label=lst:constraint_2]
+# Constructive constraint enforcement during sub-route generation
+if len(route) - 1 == LORRY_CAPACITY:
+    valid_nodes = [warehouse] # Forces immediate return to warehouse to close the sub-route
+    \end{lstlisting}
+\end{minipage}
+
+\vspace{0.5cm}
+
+\textbf{Hyperparameter Selection:}
+
+\vspace{0.25cm}
+
+The stability of the optimal solution depends on carefully adjusting the ACO hyperparameters. The heuristic importance $(\beta)$ was set much higher than the pheromone importance $(\alpha)$ to make sure the ants focus on the custom \textit{Clarke-Wright} and \textit{angular sweep} heuristic instead of blind swarm behaviours in the early stages. Additionally, a test showed that increasing the colony to $50$ ants led to \textit{Incremental Stagnation}. This happened because too many overlapping, slightly improved pheromone trails confused the swarm. A colony of $40$ ants with a $10\%$ evaporation rate worked well for Elitist Updates.
+
+\vspace{0.25cm}
+
+\noindent\begin{minipage}{1\linewidth}
+    \begin{lstlisting}[language=Python, caption=The optimal hyperparameters to prioritise heuristics and prevent incremental stagnation within the swarm., label=lst:hyperparameter_2]
+num_ants = 40
+generations = 100
+# Importance of pheromones
+alpha = 1.0
+# Importance of the heuristic (Set high to respect the Savings/Sweep)
+beta = 3.0
+evaporation = 0.1  # Pheromone decay rate
+    \end{lstlisting}
+\end{minipage}
+
+\textbf{Final Results:}
+
+\vspace{0.25cm}
+
+The optimisation framework achieved a minimum daily distribution cost of \pounds$1118.29$. The algorithm capitalised on the efficiency of \textit{Stem Miles} by fully maximising a single Lorry (\pounds$3.00$/mile) from Warehouse $1$ to sweep the bulk of the network, dispatching only a single Van (\pounds$2.00$/mile) from Warehouse $2$ to clear the remaining outlier cluster.
+
+\vspace{0.5cm}
+
+\hspace{-1.5em}Optimised Configuration (Figure~\ref{fig:supermarket_solution}):
+
+\begin{itemize}
+    \item \textbf{Total Daily Cost:} \pounds$1118.29$
+
+    \item \textbf{Route 1 (Lorry,} \pounds$903.51$\textbf{):}
+    $$\begin{aligned}
+        W1 &\rightarrow 17 \rightarrow 8 \rightarrow 15 \rightarrow 6 \rightarrow 13 \rightarrow 18 \rightarrow 5 \rightarrow 2 \rightarrow 4 \rightarrow 10 \rightarrow 22 \\
+        &\rightarrow 9 \rightarrow 11 \rightarrow 19 \rightarrow 12 \rightarrow 1 \rightarrow 20 \rightarrow 14 \rightarrow W1
+    \end{aligned}$$
+
+    \item \textbf{Route 2 (Van,} \pounds$214.78$\textbf{):}
+    $\begin{aligned}
+        W2 \rightarrow 7 \rightarrow 16 \rightarrow 3 \rightarrow 21 \rightarrow 23 \rightarrow W2
+    \end{aligned}$
+\end{itemize}
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.85\linewidth]{images/supermarket_final_routes.png}
+    \caption{The optimised distribution network. Directional paths denote the $18$-store Lorry route (red) from Warehouse $1$ and the $5$-store Van route (blue) from Warehouse $2$.}
+    \label{fig:supermarket_solution}
+\end{figure}
+
+
+
 \clearpage
 \bibliographystyle{ieeetr}
 \bibliography{references}
