@@ -79,5 +79,89 @@ def create_environment_plot():
     plt.close(fig)
 
 
+def plot_final_routes(best_routes):
+    """
+    Plots the final optimized routes on the supermarket network grid.
+    Differentiates between Lorry and Van routes using color and line style.
+    """
+    fig, ax = plt.subplots(figsize=(7, 7))
+
+    # Plot the Stores (Indices 0 to 22) - Light Blue
+    ax.scatter(
+        coords[0:23, 0], coords[0:23, 1], c='lightblue',
+        edgecolors='steelblue', marker='o', s=80, label='Stores',
+        zorder=3)
+    for i in range(23):
+        ax.annotate(
+            rf"${i+1}$",
+            (coords[i, 0] - 0.8, coords[i, 1] + 1.5),
+            fontsize=9, zorder=4)
+
+    # Plot the Warehouses (Indices 23 and 24) - Light Red
+    ax.scatter(
+        coords[23:25, 0], coords[23:25, 1], c='lightcoral',
+        edgecolors='darkred', marker='o', s=240, label='Warehouses',
+        zorder=3)
+    ax.annotate(r"$W1$", (coords[W1_IDX, 0] - 1.5, coords[W1_IDX, 1] - 4.5),
+                fontsize=11, fontweight='bold', color='darkred', zorder=4)
+    ax.annotate(r"$W2$", (coords[W2_IDX, 0] - 1.5, coords[W2_IDX, 1] - 4.5),
+                fontsize=11, fontweight='bold', color='darkred', zorder=4)
+
+    # --- PLOT THE ROUTES ---
+    lorry_labeled = False
+    van_labeled = False
+
+    for route in best_routes:
+        stores_visited = len(route) - 2
+        is_lorry = stores_visited > 5  # Based on VAN_CAPACITY constraint
+
+        # Assign distinct styles based on vehicle type
+        line_color = 'indianred' if is_lorry else 'cornflowerblue'
+        line_style = '-' if is_lorry else '--'
+
+        # Legend label
+        if is_lorry and not lorry_labeled:
+            label = 'Lorry Route'
+            lorry_labeled = True
+        elif not is_lorry and not van_labeled:
+            label = 'Van Route'
+            van_labeled = True
+        else:
+            label = None  # Prevents duplicate legend entries
+
+        # Add a dummy plot line to generate the legend accurately
+        if label:
+            ax.plot([], [], color=line_color, linewidth=2,
+                    linestyle=line_style, label=label)
+
+        # Extract coordinate arrays using NumPy indexing
+        route_coords = coords[route]
+
+        # Draw directed arrows for each segment of the route
+        for j in range(len(route_coords) - 1):
+            x1, y1 = route_coords[j]
+            x2, y2 = route_coords[j+1]
+
+            ax.annotate(
+                '', xy=(x2, y2), xytext=(x1, y1),
+                arrowprops=dict(
+                    arrowstyle="-|>", color=line_color,
+                    # shrink prevents arrows overlapping the nodes
+                    lw=2, ls=line_style, shrinkA=12, shrinkB=12),
+                zorder=1)
+
+    # Formatting
+    ax.set_xlabel("X Coordinate (Miles)")
+    ax.set_ylabel("Y Coordinate (Miles)")
+    ax.legend(loc='lower right', frameon=False, labelspacing=1.2)
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+
+    plt.tight_layout()
+    plt.savefig("distribution_network/supermarket_final_routes.png", dpi=300)
+    print("Saved: distribution_network/supermarket_final_routes.png")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     create_environment_plot()
