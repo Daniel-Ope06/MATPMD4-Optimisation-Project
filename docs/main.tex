@@ -1,0 +1,208 @@
+\documentclass[12pt, a4paper]{article}
+
+% --- Font and Language Setup (Requires XeLaTeX compiler) ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{carlito}
+\renewcommand{\familydefault}{\sfdefault}
+
+% --- Packages ---
+\usepackage{geometry}
+\geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm} % Standard academic margins
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{subcaption}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+
+% --- Python Code Formatting Setup ---
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+% --- Document Info ---
+\title{
+    \Large \textbf{MATPMD4: Optimisation Assignment}
+}
+\author{Student ID: 3539054}
+\date{April 8, 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Maximising a Function}
+
+\subsection{Problem Definition}
+
+The primary objective is to find the global maximum of the continuous function $f(x, y, z)$, subject to strict boundary constraints.
+
+\vspace{0.5cm}
+
+\hspace{-1.5em}\textbf{Objective Function:}
+
+\vspace{0.25cm}
+
+\hspace{-1.5em}Maximise $f(x, y, z)$ where:
+\begin{align*}
+f(x, y, z) &= -e^{-(x - 0.55z)^2} \cos(81(x + z + 0.12y)) + \sin(44(y + 0.03(x - z))) \\
+&\quad - \cos(69 \sin(xz + 0.07y)) - \sin(1.32(x - z)) - 0.32(z + 0.22xz)^2 e^{\sin(63(z - x))} \\
+&\quad + \cos(77x) + \sin(71z) - e^{-y^2} \cos(75y) + \sin(43y) + \cos(73y) + 0.05(x^2 + y^2 + z^2)
+\end{align*}
+
+\vspace{0.5cm}
+
+\hspace{-1.5em}\textbf{Constraints:}
+\begin{align*}
+0 &\le x \le 5 \\
+0 &\le y \le 5 \\
+0 &\le z \le 5
+\end{align*}
+
+\vspace{0.5cm}
+
+\hspace{-1.5em}\textbf{Landscape Visualisation:}
+
+\vspace{0.25cm}
+
+Since the objective function relies on three independent variables ($x, y, z$), the complete search space is 4-dimensional and impossible to plot. To visualise the terrain, take a \textit{slice} of the space by holding one variable constant. Figure~\ref{fig:3d-2d-1} fixes $z = 0.199$ and zooms into a narrow, $0.5 \times 0.5$ window for $x$ and $y$. Looking closely at this small area shows its real complexity. The surface is full of sharp peaks and steep valleys caused by overlapping trigonometric terms. This multimodal landscape explains why simple gradient-based methods would easily get stuck. It also shows why we need a strong random algorithm to explore this space effectively.
+
+\newpage
+
+\begin{figure}[t]
+    \centering
+    \begin{subfigure}[t]{0.5\linewidth}
+    \centering
+        \includegraphics[width=1\linewidth]{images/landscape_3d_surface.png}
+        \caption{3D surface plot}
+        \label{fig:3d-1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+        \includegraphics[width=1\linewidth]{images/landscape_2d_contour.png}
+        \caption{2D contour map}
+        \label{fig:2d-1}
+    \end{subfigure}
+    \caption{Visualisations of the objective function's fitness landscape at the fixed slice $z = 0.199$. The view is zoomed in at $3.75 \leq x \leq 4.25$ and $0.95 \leq y \leq 1.45$}
+    \label{fig:3d-2d-1}
+\end{figure}
+
+\vspace{0.5cm}
+
+\subsection{Algorithm Selection and Justification}
+
+\quad Knowing that the objective function is complicated, a robust search strategy is needed. Methods like Hill Climbing or basic Simulated Annealing only keep one solution and try to make it better step by step. In a topography with many false peaks, these single-state methods often get stuck at a local maximum and cannot escape \cite{Luke2013Metaheuristics}. To overcome this, a \textbf{population-based method} is better. Population-based algorithms keep a variety of possible solutions. This allows exploration of different areas at the same time. By evaluating many options together, the risk of settling on a local maximum is reduced.
+
+\vspace{0.5cm}
+
+To solve this specific problem, a $(\mu + \lambda)$ \textbf{Evolution Strategy} (\textit{ES}) was selected. \textit{ES} is a population-based metaheuristic explicitly designed for continuous, real-valued $(\mathbb{R})$ optimisation. It was preferred because:
+
+\begin{itemize}
+    \item \textbf{Real-Valued $(\mathbb{R})$ Population:} A parent population of size $\mu$ is maintained. Since the algorithm's parameters are real numbers, it can work with the coordinates $(x, y, z)$.
+
+    \item \textbf{Gaussian Mutation:} Parents produce $\lambda$ offspring by adding random noise to their coordinates. This noise follows a normal distribution, which helps balance two approaches: making small, frequent adjustments to climb local peaks (\textit{exploitation}) and taking occasional large jumps to escape traps (\textit{exploration}).
+
+    \item \textbf{Selection (Elitism):} The $\mu$ parents and $\lambda$ offspring are combined, and the fittest $\mu$ individuals survive to the next generation. This $(\mu + \lambda)$ selection makes sure that the best solutions are preserved.
+\end{itemize}
+
+\newpage
+
+\subsection{Algorithm Implementation and Results}
+
+\vspace{0.5cm}
+
+\textbf{Constraint Handling:}
+
+\vspace{0.25cm}
+
+To enforce the strict boundary conditions $(x, y, z \in [0, 5])$, a clamping function was implemented. During reproduction, if a mutation moved a child's coordinate outside the allowed range, it was adjusted back to the closest valid boundary.
+
+\vspace{0.5cm}
+
+\noindent\begin{minipage}{1\linewidth}
+    \begin{lstlisting}[language=Python, caption=Constraint Handling and Mutation Logic, label=lst:constraint_and_mutation_1]
+def clamp(value, min_bound=0.0, max_bound=5.0):
+    return max(min_bound, min(value, max_bound))
+
+# ... [Code skipped: inside the run_evolution_strategy loop] ...
+
+# Gaussian mutation
+child = {
+    'x': clamp(parent['x'] + random.gauss(0, mutation_step_size)),
+    'y': clamp(parent['y'] + random.gauss(0, mutation_step_size)),
+    'z': clamp(parent['z'] + random.gauss(0, mutation_step_size))
+}
+    \end{lstlisting}
+\end{minipage}
+
+\vspace{0.5cm}
+
+\hspace{-1.5em}\textbf{Hyperparameter Optimisation:}
+
+\vspace{0.25cm}
+
+Stochastic algorithms use randomness, so running the program only once doesn't ensure the best result. To find the most reliable settings, different combinations of parent sizes ($\mu$) and offspring sizes ($\lambda$) were tested. The tests showed that using a small group of 10 parents to create a large pool of 300 offspring ($\mu=10, \lambda=300$) gave the best results. This approach allowed the algorithm to quickly get rid of poor options while still exploring nearby peaks effectively.
+
+\vspace{0.5cm}
+
+\noindent\begin{minipage}{1\linewidth}
+    \begin{lstlisting}[language=Python, caption=Automated grid search implementation for hyperparameter optimisation across varying parent $(\mu)$ and offspring $(\lambda)$ population sizes., label=lst:hyperparameter_1]
+mu_options = [10, 30, 50]
+lambda_options = [50, 150, 300]
+trials_per_combo = 3
+
+for mu, lambda_ in itertools.product(mu_options, lambda_options):
+    for trial in range(trials_per_combo):
+        result = run_evolution_strategy(mu, lambda_)
+        if result['fitness'] > best_overall['fitness']:
+            best_overall = result
+            best_params = {'mu': mu, 'lambda': lambda_}
+    \end{lstlisting}
+\end{minipage}
+
+\vspace{0.5cm}
+
+\hspace{-1.5em}\textbf{Final Results:}
+
+\vspace{0.25cm}
+
+\hspace{-1.5em}Using the optimised parameters, the algorithm discovered the following global maximum:
+
+\begin{itemize}
+    \item \textbf{Optimal Fitness:} $7.942774$
+
+    \item \textbf{Coordinates:} $x=3.999115, y=1.204650, z=0.199002$
+\end{itemize}
+
+
+
+\clearpage
+\bibliographystyle{ieeetr}
+\bibliography{references}
+
+\end{document}
