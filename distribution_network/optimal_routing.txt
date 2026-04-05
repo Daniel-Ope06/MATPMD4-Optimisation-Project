@@ -1,0 +1,17 @@
+--- OPTIMAL SUPERMARKET ROUTING STRATEGY ---
+Total Daily Cost: £1118.29
+
+ROUTE 1:
+- Warehouse: W1
+- Vehicle Assigned: Lorry (£3.00/mile)
+- Stores Visited: 18
+- Route Cost: £903.51
+- Location Path: W1 -> Store 17 -> Store 8 -> Store 15 -> Store 6 -> Store 13 -> Store 18 -> Store 5 -> Store 2 -> Store 4 -> Store 10 -> Store 22 -> Store 9 -> Store 11 -> Store 19 -> Store 12 -> Store 1 -> Store 20 -> Store 14 -> W1
+
+ROUTE 2:
+- Warehouse: W2
+- Vehicle Assigned: Van (£2.00/mile)
+- Stores Visited: 5
+- Route Cost: £214.78
+- Location Path: W2 -> Store 7 -> Store 16 -> Store 3 -> Store 21 -> Store 23 -> W2
+
