@@ -1,0 +1,8 @@
+==================================================
+OPTIMAL STATE DISCOVERED via Simulated Annealing
+==================================================
+    Grid Resolution : 30x30
+    Total Math Cost : 0.0142
+    Compute Latency : 2.92 ms
+    Occlusion Rate  : 0.0 %
+==================================================
