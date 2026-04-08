@@ -4,3 +4,10 @@
 Best Parameters: mu=10, lambda=300
 Max Fitness:     7.952102
 Coordinates:     x=4.000815, y=1.204875, z=0.200288
+
+========================================
+         FINE-TUNING COMPLETE           
+========================================
+Original Fitness: 7.952102
+New Max Fitness:  7.982176
+New Coordinates:  x=3.998687, y=1.206588, z=0.200044
