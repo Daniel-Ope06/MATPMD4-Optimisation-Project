@@ -22,7 +22,7 @@ Because standard algorithms struggle with complex problems, this system navigate
   <img src="docs/images/landscape_2d_contour.png" width="48%" alt="2D contour map">
 </div>
 
-*Figure 1: Visualisations of the objective function's fitness landscape at the fixed slice $z = 0.199$. The view is zoomed in at $3.75 \leq x \leq 4.25$ and $0.95 \leq y \leq 1.45$*
+Figure 1: Visualisations of the objective function's fitness landscape at the fixed slice $z = 0.199$. The view is zoomed in at $3.75 \leq x \leq 4.25$ and $0.95 \leq y \leq 1.45$
 
 <br/>
 
@@ -38,7 +38,7 @@ Because standard algorithms struggle with complex problems, this system navigate
   <img src="docs/images/supermarket_final_routes.png" width="80%" alt="supermarket_final_routes">
 </div>
 
-*Figure 2: The optimised distribution network. Directional paths denote the $18$-store Lorry route (red) from Warehouse $1$ and the $5$-store Van route (blue) from Warehouse $2$.*
+Figure 2: The optimised distribution network. Directional paths denote the $18$-store Lorry route (red) from Warehouse $1$ and the $5$-store Van route (blue) from Warehouse $2$.
 
 <br/>
 
@@ -54,14 +54,14 @@ Because standard algorithms struggle with complex problems, this system navigate
   <img src="docs/images/plot_3_pareto_front.png" width="80%" alt="pareto">
 </div>
 
-*Figure 3: A comparison showing the trade-off between computation time and path occlusion. The colour gradient $(\Delta R)$ illustrates the system's unpredictable performance, particularly the tendency for high-resolution setups to cluster into failure states.*
+Figure 3: A comparison showing the trade-off between computation time and path occlusion. The colour gradient $(\Delta R)$ illustrates the system's unpredictable performance, particularly the tendency for high-resolution setups to cluster into failure states.
 
 <br/>
 
 <div align="center">
-  <img src="docs/images/solved_maze_env_0134.png" width="80%" alt="supermarket_final_routes">
+  <img src="docs/images/solved_maze_env_0134.png" width="60%" alt="supermarket_final_routes">
 </div>
 
 <br/>
 
-*Figure 4: Visual output of the Ariadne system. The aerial image is translated into a matrix, allowing the $A^*$ algorithm to generate an optimal trajectory (green) while avoiding structural boundaries (white).*
+Figure 4: Visual output of the Ariadne system. The aerial image is translated into a matrix, allowing the $A^*$ algorithm to generate an optimal trajectory (green) while avoiding structural boundaries (white).
