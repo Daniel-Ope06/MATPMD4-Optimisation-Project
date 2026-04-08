@@ -330,7 +330,141 @@ The optimisation framework achieved a minimum daily distribution cost of \pounds
     \label{fig:supermarket_solution}
 \end{figure}
 
+\section{Ariadne Grid Optimization}
 
+\subsection{Background: The Ariadne System}
+
+\quad In classical mythology, the labyrinth of Crete was navigated successfully using \textit{"Ariadne’s thread."} This is a lifeline given by someone outside the maze to help a traveller find their way. This idea inspired the Ariadne navigation system \cite{ope2026ariadne}, which is designed for Unmanned Ground Vehicles (UGVs) operating in \textbf{GPS-denied environments}, like in disaster zones or search-and-rescue missions. Since the UGV lacks internal localisation, an aerial drone (UAV) serves as the outside observer and provides a top-down view of the area. A neural network processes the images from the drone, separating the safe paths from obstacles. The system then uses the $A^*$ algorithm to create a safe route to the target, similar to weaving a thread.
+
+\vspace{0.5cm}
+
+While the neural network processes visual information, a key challenge arises when converting the aerial image into a simple grid for the $A^*$ algorithm. To calculate routes in real-time, the environment must be scaled down to a lower-resolution matrix $(R \times R)$. However, choosing the right scale is tricky: a grid that is too \textbf{coarse} may block important pathways, while a grid that is too \textbf{fine} can cause significant delays in computation.
+
+\vspace{0.25cm}
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.6\linewidth]{images/solved_maze_env_0134.png}
+    \caption{Visual output of the Ariadne system. The aerial image is translated into a matrix, allowing the A* algorithm to generate an optimal trajectory (green) while avoiding structural boundaries (white).}
+    \label{fig:solved_example_1}
+\end{figure}
+
+\subsection{Aim: Balancing Latency and Path Feasibility}
+
+\quad The primary objective of this optimisation is to determine the \textbf{ideal grid resolution}, $R$, that minimises the total navigation penalty for the Ariadne system. The aerial image is turned into an $R \times R$ matrix, which requires balancing two competing factors:
+
+\begin{itemize}
+    \item \textbf{Latency:} the time it takes for the algorithm to compute.
+
+    \item \textbf{Path occlusion rate:} the probability of \textit{spatial aliasing} artificially blocking physically navigable routes.
+\end{itemize}
+
+\hspace{-1.5em}Note that a \textbf{wall-hugging penalty} is intentionally excluded from this objective, as the A* algorithm functions solely as a global pathfinder; managing physical boundary buffering is assigned to the UGV’s onboard local planner and sensory suite.
+
+\vspace{0.5cm}
+
+\hspace{-1.5em}The following \textbf{constraints} ensure the optimization results are practical for edge computing:
+
+\begin{itemize}
+    \item \textbf{Integer constraint $(R \in \mathbb{Z}^{+})$:} Grid resolutions must be whole numbers; fractional cells are invalid.
+
+    \item \textbf{Lower Bound $(R \ge 10)$:} The synthetic test environments (mazes) are procedurally generated upon a $10 \times 10$ grid. Resolutions below $10$ break the layout and block all paths ($100\%$ path occlusion rate).
+
+    \item \textbf{Upper Bound $(R \le 100)$:} The theoretical maximum resolution is a $1:1$ pixel mapping $(R=640)$. However, due to the $O(V \log V)$ time complexity of the $A^*$ algorithm, traversing over $400,000$ $(V = 640 \times 640)$ vertices introduces severe latency that violates real-time edge processing constraints. 
+\end{itemize}
+
+\vspace{0.25cm}
+
+\subsection{Model: The Objective Function}
+
+\quad Running the full perception and search systems during optimisation requires too much computing power. To resolve this, the evaluation process was separated from live execution. Instead, a dataset was pre-computed by testing $100$ simulated mazes across resolutions from $10$ to $100$, increasing in steps of $2$ $(R \in [10, 100]$ at $\Delta R = 2)$.
+
+\vspace{0.5cm}
+
+\hspace{-1.5em}The algorithm uses this dataset to balance two competing metrics:
+
+\begin{itemize}
+    \item \textbf{Compute Latency $(C_{time})$:} As observed in Figure~\ref{fig:latency}, latency exhibits predictable, continuous growth tracking the theoretical $O(V \log V)$ time complexity of the $A^*$ algorithm.
+
+    \item \textbf{Path Occlusion $(C_{occ})$:} As shown in Figure~\ref{fig:occlusion}, the failure rate is highly unstable. While paths are completely clear at $R=30$, severe alignment issues emerge at higher resolutions (e.g., a $90\%$ failure spike at $R=66$). This happens because the grid misaligns with the map structure, causing the calculated path to accidentally clip into obstacles.
+\end{itemize}
+
+Because computation time is measured in milliseconds and occlusion is a probability, combining them directly creates a mathematical imbalance. Without normalisation, the system would prioritise saving fractions of a millisecond over avoiding actual collisions. To fix this, computation time is scaled to a $0.0$ to $1.0$ range $(\hat{C}_{time})$ to match the occlusion metric $(C_{occ})$. This ensures the adjustable weights $(W)$ accurately control the trade-off in the final cost function:
+
+$$J(R) = W_{time} \cdot \hat{C}_{time}(R) + W_{occ} \cdot C_{occ}(R)$$
+
+\begin{figure}[t]
+    \centering
+    \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+        \includegraphics[width=1\linewidth]{images/plot_1_resolution_vs_time.png}
+        \caption{Computational latency cost}
+        \label{fig:latency}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.5\linewidth}
+    \centering
+        \includegraphics[width=1\linewidth]{images/plot_2_resolution_vs_occlusion.png}
+        \caption{Path occlusion rate}
+        \label{fig:occlusion}
+    \end{subfigure}
+    \caption{Both metrics are stable when the resolution $(R)$ is between $40$ and $64$. Outside this range, the system fails either because low resolutions block the path or high resolutions cause grid misalignment.}
+    \label{fig:lat-occ}
+\end{figure}
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.7\linewidth]{images/plot_3_pareto_front.png}
+    \caption{A comparison showing the trade-off between computation time and path occlusion. The colour gradient $(\Delta R)$ illustrates the system's unpredictable performance, particularly the tendency for high-resolution setups to cluster into failure states.}
+    \label{fig:pareto}
+\end{figure}
+
+\subsection{Optimisation Method: Simulated Annealing}
+
+\quad To find the optimal balance without getting stuck in failure zones, a \textbf{Simulated Annealing} \textit{(SA)} algorithm is used. \textit{SA} introduces controlled randomness, temporarily accepting slower performance to escape unstable areas and find the best overall resolution. The algorithm operates in four main stages:
+
+\begin{enumerate}
+    \item \textbf{Neighbourhood Search:} The system searches within a set resolution range $(R \in [10, 100])$, moving in small steps $(\Delta R = \pm 2)$. Larger steps are avoided so the process does not become completely random.
+
+    \item \textbf{Weighted Evaluation:} Finding an open path is prioritised over minor speed improvements. Avoiding blocked paths gets a $0.6$ weight $(W_{occ})$, while calculation time gets a $0.4$ weight $(W_{time})$.
+
+    \item \textbf{Probability Acceptance:} If a new step results in a worse score $(\Delta E > 0)$, it might still be accepted based on a probability formula $(P = e^{-\Delta E / T})$. A cooling factor of $0.95$ gradually lowers this chance, forcing the system to eventually lock in on the best solution.
+
+    \item \textbf{Multi-Start Verification:} To prevent random variations from stopping the search too early, the entire loop runs five times to guarantee a reliable result.
+\end{enumerate}
+
+\subsection{Results}
+
+\begin{itemize}
+    \item \textbf{The Mathematical Best:} $R=30$ is the fastest successful resolution ($2.92$ ms, $0\%$ failures), but it is too close to a failure zone. Dropping to $R=28$ results in a $23\%$ failure rate.
+
+    \item \textbf{The Safe Zone:} The data shows a stable plateau of zero failures stretching from $R=40$ to $R=64$.
+
+    \item \textbf{The Practical Choice:} For a real-world UGV, reliability outweighs extreme speed. Setting the resolution to the centre of the stable zone $R=52$ ($10.76$ ms, $0\%$ failures) protects the system from both low-resolution blocked paths and high-resolution clipping errors.
+\end{itemize}
+
+\subsection{Conclusion}
+
+\quad This project showed that both high and low grid resolutions cause distinct failures (Figure~\ref{fig:failures}). These failures prove that a global pathfinder (UAV) cannot operate alone, as it only understands the grid, not the physical world. Therefore, the UGV must use real-time sensors (like LiDAR or cameras) for immediate obstacle avoidance. The calculated path serves only as a general guide, while the active sensors ensure physical safety.
+
+\begin{figure}[h!]
+    \centering
+    \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+        \includegraphics[width=1\linewidth]{images/R20_maze_env_0705.png}
+        \caption{Missing Geometry (Low Resolution)}
+        \label{fig:crossing}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+        \includegraphics[width=1\linewidth]{images/R92_maze_env_0354.png}
+        \caption{Path Clipping (High Resolution)}
+        \label{fig:clipping}
+    \end{subfigure}
+    \caption{At \textbf{low resolutions} thin walls disappear from the grid, causing the system to treat solid obstacles as open space. At \textbf{high resolutions} the calculated route hugs corners too tightly, causing the path to clip into walls.}
+    \label{fig:failures}
+\end{figure}
 
 \clearpage
 \bibliographystyle{ieeetr}
