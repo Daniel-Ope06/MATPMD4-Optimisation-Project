@@ -118,5 +118,108 @@ def execute_parameter_sweep():
     print(f"Results successfully saved to '{filepath}'")
 
 
+def run_focused_evolution_strategy(
+        center_x, center_y, center_z, radius=0.2,
+        mu=10, lambda_=300, generations=300, initial_mutation_step_size=0.05):
+    """Executes a fine-tuning (mu + lambda) ES trial around a specific peak."""
+    population = []
+
+    # Define local boundaries
+    min_x, max_x = max(0.0, center_x - radius), min(5.0, center_x + radius)
+    min_y, max_y = max(0.0, center_y - radius), min(5.0, center_y + radius)
+    min_z, max_z = max(0.0, center_z - radius), min(5.0, center_z + radius)
+
+    # Initialize parent population clustered tightly around the known peak
+    for _ in range(mu):
+        candidate = {
+            'x': random.uniform(min_x, max_x),
+            'y': random.uniform(min_y, max_y),
+            'z': random.uniform(min_z, max_z)
+        }
+        candidate['fitness'] = evaluate_fitness(
+            candidate['x'], candidate['y'], candidate['z'])
+        population.append(candidate)
+
+    global_best = max(population, key=get_fitness)
+    mutation_step_size = initial_mutation_step_size
+
+    for gen in range(generations):
+        offspring = []
+
+        # Generate lambda offspring via micro-mutations
+        for _ in range(lambda_):
+            parent = random.choice(population)
+            child = {
+                'x': clamp(parent['x'] + random.gauss(0, mutation_step_size), min_x, max_x),  # noqa: E501
+                'y': clamp(parent['y'] + random.gauss(0, mutation_step_size), min_y, max_y),  # noqa: E501
+                'z': clamp(parent['z'] + random.gauss(0, mutation_step_size), min_z, max_z)  # noqa: E501
+            }
+            child['fitness'] = evaluate_fitness(
+                child['x'], child['y'], child['z'])
+            offspring.append(child)
+
+        # (mu + lambda) selection
+        combined_population = population + offspring
+        combined_population.sort(key=get_fitness, reverse=True)
+        population = combined_population[:mu]
+
+        if population[0]['fitness'] > global_best['fitness']:
+            global_best = population[0]
+
+        # Decay mutation size to fine-tune even closer to the absolute peak
+        mutation_step_size *= 0.99
+
+    return global_best
+
+
+def execute_focused_search():
+    """
+    Runs the fine-tuning ES around the best coordinates
+    found during the sweep."""
+    # The best coordinates from parameter sweep
+    best_x = 4.000815
+    best_y = 1.204875
+    best_z = 0.200288
+
+    # Best parameters from sweep
+    optimal_mu = 10
+    optimal_lambda = 300
+
+    print(f"Beginning focused search around ({best_x}, {best_y}, {best_z})...\n")  # noqa: E501
+
+    # Run the focused search
+    fine_tuned_result = run_focused_evolution_strategy(
+        center_x=best_x,
+        center_y=best_y,
+        center_z=best_z,
+        radius=0.2,  # Search strictly within +/- 0.2 of the coordinates
+        mu=optimal_mu,
+        lambda_=optimal_lambda,
+        generations=1000
+    )
+
+    # Format the final output string
+    output_text = (
+        "========================================\n"
+        "         FINE-TUNING COMPLETE           \n"
+        "========================================\n"
+        f"Original Fitness: 7.952102\n"
+        f"New Max Fitness:  {fine_tuned_result['fitness']:.6f}\n"
+        f"New Coordinates:  x={fine_tuned_result['x']:.6f}, y={fine_tuned_result['y']:.6f}, z={fine_tuned_result['z']:.6f}\n"  # noqa: E501
+    )
+
+    # Print to console
+    print(output_text)
+
+    # Save to text file
+    # (appending so it doesn't overwrite initial sweep results)
+    filepath = "maximising_function/optimization_results.txt"
+    with open(filepath, "a") as file:
+        file.write("\n" + output_text)
+
+    print(f"Results successfully appended to '{filepath}'")
+
+
 if __name__ == "__main__":
-    execute_parameter_sweep()
+    # execute_parameter_sweep()
+    execute_focused_search()
